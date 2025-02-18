@@ -1,0 +1,18 @@
+# Compiled files
+/target/
+**/*.rs.bk
+
+# Other
+Cargo.lock
+*.log
+
+# VSCode
+.vscode/
+*.code-workspace
+
+# Jetbrains
+.idea/
+*.iml
+
+# dotenv
+.env
