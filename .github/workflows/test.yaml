@@ -1,0 +1,69 @@
+name: Test with Code Coverage
+
+on:
+  pull_request:
+  push:
+    branches:
+      - master
+
+jobs:
+  test:
+    name: Test
+    env:
+      PROJECT_NAME_UNDERSCORE: commit_smith
+      CARGO_INCREMENTAL: 0
+      # Enable Rust's profiling for coverage
+      RUSTFLAGS: -Zprofile -Ccodegen-units=1 -Copt-level=0 -Clink-dead-code -Coverflow-checks=off -Zpanic_abort_tests -Cpanic=abort
+      RUSTDOCFLAGS: -Cpanic=abort
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: nightly
+          override: true
+
+      - name: Cache dependencies
+        uses: actions/cache@v2
+        env:
+          cache-name: cache-dependencies
+        with:
+          path: |
+            ~/.cargo/.crates.toml
+            ~/.cargo/.crates2.json
+            ~/.cargo/bin
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            target
+          key: ${{ runner.os }}-build-${{ env.cache-name }}-${{ hashFiles('Cargo.lock') }}
+
+      - name: Install Tools and Run Tests
+        run: |
+          cargo install cargo2junit grcov
+          cargo test -- --format json | cargo2junit > results.xml
+
+      - name: Collect Coverage
+        run: |
+          # Gather .gc* files
+          zip -0 ccov.zip `find . -name "${{ env.PROJECT_NAME_UNDERSCORE }}*.gc*" -print`
+          # Generate lcov.info with grcov
+          grcov ccov.zip -s . -t lcov --llvm --ignore-not-existing --ignore "/*" --ignore "tests/*" -o lcov.info
+
+      - name: Upload Test Results
+        uses: EnricoMi/publish-unit-test-result-action@v1
+        with:
+          check_name: Test Results
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          files: results.xml
+
+      - name: Upload to CodeCov
+        uses: codecov/codecov-action@v1
+        with:
+          # Provide token if needed for private repos
+          # token: ${{ secrets.CODECOV_TOKEN }}
+          files: lcov.info
+          fail_ci_if_error: true
